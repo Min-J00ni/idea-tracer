@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  font-family: var(--font-geist-sans), "Inter", "Pretendard", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
