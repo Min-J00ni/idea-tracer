@@ -42,30 +42,81 @@ export default function AudioPlayer({ audioUrl, seekMs, onTimeUpdate }: Props) {
 
   if (!audioUrl) return null;
 
+  const progress = duration ? currentTime / duration : 0;
+
   return (
-    <div className="bg-white border-t border-gray-200 px-5 py-3 flex items-center gap-4">
+    <div
+      style={{
+        background: "#0f1011",
+        borderTop: "1px solid rgba(255,255,255,0.08)",
+        padding: "10px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+      }}
+    >
       <audio
         ref={audioRef}
         src={audioUrl}
         onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={() => setDuration((audioRef.current?.duration || 0) * 1000)}
+        onLoadedMetadata={() =>
+          setDuration((audioRef.current?.duration || 0) * 1000)
+        }
         onEnded={() => setIsPlaying(false)}
       />
+
+      {/* 재생 버튼 */}
       <button
         onClick={togglePlay}
-        className="w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm hover:bg-gray-700 transition-colors"
+        style={{
+          width: "32px",
+          height: "32px",
+          borderRadius: "50%",
+          background: "#5e6ad2",
+          border: "none",
+          color: "#ffffff",
+          fontSize: "12px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          transition: "background 0.15s",
+        }}
+        onMouseOver={(e) => ((e.currentTarget as HTMLElement).style.background = "#7170ff")}
+        onMouseOut={(e) => ((e.currentTarget as HTMLElement).style.background = "#5e6ad2")}
       >
         {isPlaying ? "⏸" : "▶"}
       </button>
-      <div className="flex-1 flex items-center gap-2">
-        <span className="text-xs text-gray-500 w-10">{formatMs(currentTime)}</span>
-        <div className="flex-1 h-1 bg-gray-200 rounded-full relative">
+
+      {/* 타임라인 */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "8px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 510, color: "#62666d", width: "36px" }}>
+          {formatMs(currentTime)}
+        </span>
+        <div
+          style={{
+            flex: 1,
+            height: "3px",
+            background: "rgba(255,255,255,0.08)",
+            borderRadius: "9999px",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
           <div
-            className="h-1 bg-gray-900 rounded-full transition-all"
-            style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }}
+            style={{
+              height: "100%",
+              width: `${progress * 100}%`,
+              background: "#7170ff",
+              borderRadius: "9999px",
+              transition: "width 0.1s linear",
+            }}
           />
         </div>
-        <span className="text-xs text-gray-500 w-10">{formatMs(duration)}</span>
+        <span style={{ fontSize: "11px", fontWeight: 510, color: "#62666d", width: "36px", textAlign: "right" }}>
+          {formatMs(duration)}
+        </span>
       </div>
     </div>
   );

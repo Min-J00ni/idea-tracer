@@ -125,7 +125,7 @@ export default function Home() {
 
   if (state === "upload" || state === "processing") {
     return (
-      <div className="h-screen bg-[#F9FAFB] flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center" style={{ background: "#0f1011" }}>
         <FileUpload
           onFileSelect={handleFileSelect}
           isProcessing={state === "processing"}
@@ -138,32 +138,65 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       {/* 상단 바 */}
-      <div className="bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between">
+      <div
+        style={{
+          background: "#0f1011",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          padding: "10px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
         <div>
-          <h1 className="text-lg font-bold text-gray-900">IdeaTracer</h1>
+          <h1
+            style={{
+              fontSize: "15px",
+              fontWeight: 590,
+              color: "#f7f8f8",
+              letterSpacing: "-0.165px",
+              margin: 0,
+            }}
+          >
+            IdeaTracer
+          </h1>
           {result.summary && (
-            <p className="text-xs text-gray-500 mt-0.5">{result.summary}</p>
+            <p
+              style={{
+                fontSize: "11px",
+                color: "#62666d",
+                marginTop: "2px",
+              }}
+            >
+              {result.summary}
+            </p>
           )}
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleShare}
-            className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            공유 링크
-          </button>
-          <button
-            onClick={handleExportMarkdown}
-            className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            MD 내보내기
-          </button>
-          <button
-            onClick={handleExportNotion}
-            className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            Notion 내보내기
-          </button>
+        <div style={{ display: "flex", gap: "6px" }}>
+          {[
+            { label: "공유 링크", onClick: handleShare },
+            { label: "MD 내보내기", onClick: handleExportMarkdown },
+            { label: "Notion 내보내기", onClick: handleExportNotion },
+          ].map((btn) => (
+            <button
+              key={btn.label}
+              onClick={btn.onClick}
+              style={{
+                fontSize: "12px",
+                fontWeight: 510,
+                padding: "5px 12px",
+                borderRadius: "6px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                color: "#d0d6e0",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {btn.label}
+            </button>
+          ))}
           <button
             onClick={() => {
               setState("upload");
@@ -171,7 +204,17 @@ export default function Home() {
               setSelectedUtterance(null);
               setAudioUrl(null);
             }}
-            className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            style={{
+              fontSize: "12px",
+              fontWeight: 510,
+              padding: "5px 12px",
+              borderRadius: "6px",
+              background: "#5e6ad2",
+              border: "none",
+              color: "#ffffff",
+              cursor: "pointer",
+              transition: "background 0.15s",
+            }}
           >
             새 회의
           </button>

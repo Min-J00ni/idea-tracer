@@ -1,7 +1,55 @@
 @import "tailwindcss";
 
+:root {
+  --bg-marketing: #010102;
+  --bg-panel:    #0f1011;
+  --bg-surface:  #191a1b;
+  --bg-elevated: #28282c;
+
+  --text-primary:   #f7f8f8;
+  --text-secondary: #d0d6e0;
+  --text-tertiary:  #8a8f98;
+  --text-muted:     #62666d;
+
+  --brand:        #5e6ad2;
+  --accent:       #7170ff;
+  --accent-hover: #828fff;
+
+  --border-subtle:   rgba(255, 255, 255, 0.05);
+  --border-standard: rgba(255, 255, 255, 0.08);
+}
+
 body {
   margin: 0;
-  font-family: var(--font-geist-sans), "Inter", "Pretendard", system-ui, sans-serif;
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-feature-settings: "cv01", "ss03";
   -webkit-font-smoothing: antialiased;
+}
+
+/* ReactFlow 다크모드 오버라이드 */
+.react-flow__background {
+  background-color: #0f1011 !important;
+}
+
+.react-flow__controls {
+  background: #191a1b !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #8a8f98 !important;
+  fill: #8a8f98 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  fill: #f7f8f8 !important;
+}
+
+.react-flow__edge-path {
+  stroke-opacity: 0.6;
 }

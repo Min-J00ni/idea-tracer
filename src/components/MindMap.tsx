@@ -194,12 +194,22 @@ export default function MindMap({
   void EDGE_COLORS;
 
   return (
-    <div className="relative flex-1 flex flex-col" style={{ backgroundColor: "#F9FAFB" }}>
+    <div className="relative flex-1 flex flex-col" style={{ backgroundColor: "#0f1011" }}>
       {/* 툴바 */}
       <div className="absolute top-3 right-3 z-10 flex gap-2">
         <button
           onClick={handleExportPNG}
-          className="text-xs px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shadow-sm transition-colors"
+          style={{
+            fontSize: "12px",
+            fontWeight: 510,
+            padding: "5px 10px",
+            borderRadius: "6px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: "#8a8f98",
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
         >
           PNG 저장
         </button>
@@ -219,7 +229,7 @@ export default function MindMap({
           fitView
           fitViewOptions={{ padding: 0.3 }}
         >
-          <Background color="#E5E7EB" gap={20} size={1} />
+          <Background color="rgba(255,255,255,0.04)" gap={24} size={1} />
           <Controls />
         </ReactFlow>
       </div>

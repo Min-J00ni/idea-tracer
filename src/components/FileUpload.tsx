@@ -34,14 +34,31 @@ export default function FileUpload({ onFileSelect, isProcessing, stage }: Props)
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 p-8">
       <div className="text-center mb-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">IdeaTracer</h1>
-        <p className="text-gray-500">회의 녹음을 마인드맵으로 시각화합니다</p>
+        <h1
+          className="text-3xl mb-2"
+          style={{
+            fontWeight: 510,
+            color: "#f7f8f8",
+            letterSpacing: "-0.704px",
+          }}
+        >
+          IdeaTracer
+        </h1>
+        <p style={{ color: "#8a8f98", fontSize: "15px" }}>
+          회의 녹음을 마인드맵으로 시각화합니다
+        </p>
       </div>
 
       {isProcessing ? (
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
-          <p className="text-sm text-gray-600">{stage}</p>
+          <div
+            className="w-10 h-10 rounded-full animate-spin"
+            style={{
+              border: "2px solid rgba(255,255,255,0.08)",
+              borderTopColor: "#7170ff",
+            }}
+          />
+          <p style={{ fontSize: "13px", color: "#8a8f98" }}>{stage}</p>
         </div>
       ) : (
         <div
@@ -51,11 +68,13 @@ export default function FileUpload({ onFileSelect, isProcessing, stage }: Props)
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          className={`
-            w-full max-w-md border-2 border-dashed rounded-2xl p-12 text-center
-            transition-colors cursor-pointer
-            ${dragOver ? "border-blue-400 bg-blue-50" : "border-gray-300 hover:border-gray-400"}
-          `}
+          className="w-full max-w-md rounded-2xl p-12 text-center transition-all cursor-pointer"
+          style={{
+            border: `2px dashed ${dragOver ? "#7170ff" : "rgba(255,255,255,0.08)"}`,
+            background: dragOver
+              ? "rgba(113,112,255,0.06)"
+              : "rgba(255,255,255,0.02)",
+          }}
         >
           <input
             type="file"
@@ -66,21 +85,36 @@ export default function FileUpload({ onFileSelect, isProcessing, stage }: Props)
           />
           <label htmlFor="audio-upload" className="cursor-pointer">
             <div className="text-4xl mb-3">🎙️</div>
-            <p className="text-sm font-medium text-gray-700 mb-1">
+            <p
+              className="mb-1"
+              style={{ fontSize: "14px", fontWeight: 510, color: "#d0d6e0" }}
+            >
               오디오 파일을 드래그하거나 클릭하세요
             </p>
-            <p className="text-xs text-gray-400">MP3, WAV, M4A 지원</p>
+            <p style={{ fontSize: "12px", color: "#62666d" }}>
+              MP3, WAV, M4A 지원
+            </p>
           </label>
         </div>
       )}
 
       <button
-        onClick={() => {
-          // 데모 모드: mock data 사용
-          const event = new CustomEvent("load-demo");
-          window.dispatchEvent(event);
+        onClick={() => window.dispatchEvent(new CustomEvent("load-demo"))}
+        style={{
+          fontSize: "13px",
+          color: "#7170ff",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          textDecoration: "underline",
+          textUnderlineOffset: "3px",
         }}
-        className="text-sm text-blue-500 hover:text-blue-700 underline underline-offset-2"
+        onMouseOver={(e) =>
+          ((e.target as HTMLElement).style.color = "#828fff")
+        }
+        onMouseOut={(e) =>
+          ((e.target as HTMLElement).style.color = "#7170ff")
+        }
       >
         데모 데이터로 체험하기
       </button>

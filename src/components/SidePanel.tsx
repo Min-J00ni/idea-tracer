@@ -16,77 +16,164 @@ export default function SidePanel({ utterance, onClose, onSeek }: Props) {
   const intent = INTENT_CONFIG[utterance.intent];
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 p-5 overflow-y-auto flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900">발언 상세</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">
+    <div
+      style={{
+        width: "300px",
+        background: "#0f1011",
+        borderLeft: "1px solid rgba(255,255,255,0.08)",
+        padding: "20px",
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span
+          style={{ fontSize: "13px", fontWeight: 590, color: "#f7f8f8", letterSpacing: "-0.13px" }}
+        >
+          발언 상세
+        </span>
+        <button
+          onClick={onClose}
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "6px",
+            color: "#8a8f98",
+            fontSize: "12px",
+            width: "24px",
+            height: "24px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           ✕
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* 화자 + 재생 */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <div
-          className="w-2 h-2 rounded-full"
-          style={{ backgroundColor: emotion.color }}
+          style={{
+            width: "6px",
+            height: "6px",
+            borderRadius: "50%",
+            background: emotion.color,
+            flexShrink: 0,
+          }}
         />
-        <span className="text-sm font-medium text-gray-700">{utterance.speaker}</span>
+        <span style={{ fontSize: "13px", fontWeight: 510, color: "#d0d6e0" }}>
+          {utterance.speaker}
+        </span>
         <button
           onClick={() => onSeek(utterance.startMs)}
-          className="ml-auto text-xs text-blue-500 hover:text-blue-700 cursor-pointer"
+          style={{
+            marginLeft: "auto",
+            fontSize: "11px",
+            fontWeight: 510,
+            color: "#7170ff",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+          }}
         >
           {formatMs(utterance.startMs)} 재생
         </button>
       </div>
 
-      <p className="text-sm text-gray-800 leading-relaxed bg-gray-50 rounded-lg p-3">
+      {/* 본문 */}
+      <p
+        style={{
+          fontSize: "13px",
+          color: "#d0d6e0",
+          lineHeight: 1.6,
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: "8px",
+          padding: "12px",
+          margin: 0,
+        }}
+      >
         {utterance.text}
       </p>
 
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="bg-gray-50 rounded p-2">
-          <span className="text-gray-500">감정</span>
-          <p className="font-medium mt-0.5" style={{ color: emotion.color }}>
+      {/* 감정 + 의도 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <MetaBox label="감정">
+          <span style={{ fontWeight: 510, color: emotion.color }}>
             {emotion.icon} {emotion.label}
-          </p>
-        </div>
-        <div className="bg-gray-50 rounded p-2">
-          <span className="text-gray-500">의도</span>
-          <p className="font-medium mt-0.5 text-gray-800">
+          </span>
+        </MetaBox>
+        <MetaBox label="의도">
+          <span style={{ fontWeight: 510, color: "#d0d6e0" }}>
             {intent.icon} {intent.label}
-          </p>
-        </div>
+          </span>
+        </MetaBox>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="bg-gray-50 rounded p-2">
-          <span className="text-gray-500">핵심 키워드</span>
-          <p className="text-sm font-medium mt-0.5 text-gray-800">{utterance.keyPhrase}</p>
-        </div>
-        <div className="bg-gray-50 rounded p-2">
-          <span className="text-gray-500">중요도</span>
-          <div className="flex items-center gap-1 mt-0.5">
-            <div className="flex-1 h-1.5 bg-gray-200 rounded-full">
+      {/* 키워드 + 중요도 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <MetaBox label="핵심 키워드">
+          <span style={{ fontSize: "13px", fontWeight: 510, color: "#d0d6e0" }}>
+            {utterance.keyPhrase}
+          </span>
+        </MetaBox>
+        <MetaBox label="중요도">
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <div
+              style={{
+                flex: 1,
+                height: "4px",
+                background: "rgba(255,255,255,0.08)",
+                borderRadius: "9999px",
+                overflow: "hidden",
+              }}
+            >
               <div
-                className="h-1.5 rounded-full"
                 style={{
                   width: `${utterance.importance * 100}%`,
-                  backgroundColor: emotion.color,
+                  height: "100%",
+                  background: emotion.color,
+                  borderRadius: "9999px",
                 }}
               />
             </div>
-            <span className="text-gray-600 font-medium">
+            <span style={{ fontSize: "11px", fontWeight: 510, color: "#8a8f98" }}>
               {Math.round(utterance.importance * 100)}%
             </span>
           </div>
-        </div>
+        </MetaBox>
       </div>
 
       {utterance.relatedTo.length > 0 && (
-        <div className="text-xs text-gray-500">
-          <span className="text-gray-400">연결:</span>{" "}
+        <p style={{ fontSize: "11px", color: "#62666d", margin: 0 }}>
+          연결:{" "}
           {utterance.relatedTo.map((r) => `#${r.targetIndex}(${r.type})`).join(", ")}
-        </div>
+        </p>
       )}
+    </div>
+  );
+}
+
+function MetaBox({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.02)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        borderRadius: "8px",
+        padding: "8px 10px",
+      }}
+    >
+      <span style={{ fontSize: "10px", fontWeight: 510, color: "#62666d", display: "block", marginBottom: "4px" }}>
+        {label}
+      </span>
+      <div style={{ fontSize: "12px" }}>{children}</div>
     </div>
   );
 }
