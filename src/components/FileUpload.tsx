@@ -11,24 +11,39 @@ interface Props {
 export default function FileUpload({ onFileSelect, isProcessing, stage }: Props) {
   const [dragOver, setDragOver] = useState(false);
 
+  const MAX_SIZE_MB = 50;
+
+  const validateAndSelect = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+        alert("오디오 파일만 업로드할 수 있습니다. (MP3, WAV, M4A, WebM, OGG)");
+        return;
+      }
+      if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+        alert(`파일 크기가 너무 큽니다. 최대 ${MAX_SIZE_MB} MB까지 지원합니다.`);
+        return;
+      }
+      onFileSelect(file);
+    },
+    [onFileSelect]
+  );
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith("audio/")) {
-        onFileSelect(file);
-      }
+      if (file) validateAndSelect(file);
     },
-    [onFileSelect]
+    [validateAndSelect]
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) onFileSelect(file);
+      if (file) validateAndSelect(file);
     },
-    [onFileSelect]
+    [validateAndSelect]
   );
 
   return (

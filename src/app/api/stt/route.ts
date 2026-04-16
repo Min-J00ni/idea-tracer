@@ -1,9 +1,14 @@
 import { NextRequest } from "next/server";
 import type { Utterance } from "@/lib/types";
+import { rateLimit, validateAudioFile, maskUpstreamError } from "@/lib/api-guard";
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 분당 5회 (STT는 비용이 크므로 보수적으로)
+  const limited = rateLimit(request, "stt", 5, 60_000);
+  if (limited) return limited;
+
   const apiKey = process.env.DEEPGRAM_API_KEY;
-  if (!apiKey || apiKey === "your_deepgram_api_key_here") {
+  if (!apiKey || apiKey.startsWith("your_")) {
     return Response.json(
       { error: "DEEPGRAM_API_KEY가 설정되지 않았습니다." },
       { status: 500 }
@@ -12,13 +17,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const file = formData.get("audio") as File;
+    const file = formData.get("audio") as File | null;
     if (!file) {
-      return Response.json(
-        { error: "오디오 파일이 필요합니다." },
-        { status: 400 }
-      );
+      return Response.json({ error: "오디오 파일이 필요합니다." }, { status: 400 });
     }
+
+    // 파일 크기 + MIME 타입 검증
+    const fileError = validateAudioFile(file);
+    if (fileError) return fileError;
 
     const audioBuffer = Buffer.from(await file.arrayBuffer());
 
@@ -35,11 +41,8 @@ export async function POST(request: NextRequest) {
     );
 
     if (!dgResponse.ok) {
-      const err = await dgResponse.text();
-      return Response.json(
-        { error: `Deepgram API 오류: ${err}` },
-        { status: dgResponse.status }
-      );
+      const detail = await dgResponse.text();
+      return maskUpstreamError(dgResponse.status, "Deepgram STT", detail);
     }
 
     const data = await dgResponse.json();
@@ -53,10 +56,7 @@ export async function POST(request: NextRequest) {
     );
 
     return Response.json({ utterances });
-  } catch (error) {
-    return Response.json(
-      { error: `STT 처리 실패: ${(error as Error).message}` },
-      { status: 500 }
-    );
+  } catch {
+    return Response.json({ error: "STT 처리 중 오류가 발생했습니다." }, { status: 500 });
   }
 }

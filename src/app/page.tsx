@@ -110,6 +110,13 @@ export default function Home() {
   }, [result]);
 
   const handleShare = useCallback(() => {
+    const confirmed = window.confirm(
+      "공유 링크에는 회의 전체 내용(발언·요약·액션아이템)이 포함됩니다.\n" +
+        "링크를 받은 사람은 누구나 내용을 볼 수 있습니다.\n\n" +
+        "계속하시겠습니까?"
+    );
+    if (!confirmed) return;
+
     const encoded = encodeShareData(result);
     const url = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
     navigator.clipboard.writeText(url).then(

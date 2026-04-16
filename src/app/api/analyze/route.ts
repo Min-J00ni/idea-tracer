@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import type { Utterance, AnalyzedUtterance, AnalysisResult, Topic, ActionItem } from "@/lib/types";
+import { rateLimit, validateUtterances, maskUpstreamError } from "@/lib/api-guard";
 
 const SYSTEM_PROMPT = `당신은 회의 맥락 분석 전문가입니다. 회의 발언 배열을 받아 구조화된 분석을 수행합니다.
 
@@ -35,8 +36,12 @@ const SYSTEM_PROMPT = `당신은 회의 맥락 분석 전문가입니다. 회의
 }`;
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 분당 10회
+  const limited = rateLimit(request, "analyze", 10, 60_000);
+  if (limited) return limited;
+
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || apiKey === "your_openai_api_key_here") {
+  if (!apiKey || apiKey.startsWith("your_")) {
     return Response.json(
       { error: "OPENAI_API_KEY가 설정되지 않았습니다." },
       { status: 500 }
@@ -44,13 +49,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { utterances } = (await request.json()) as { utterances: Utterance[] };
-    if (!utterances?.length) {
-      return Response.json(
-        { error: "분석할 발언이 없습니다." },
-        { status: 400 }
-      );
-    }
+    const body = await request.json();
+    const { utterances } = body as { utterances: Utterance[] };
+
+    // 발언 배열 크기·내용 검증 (토큰 폭탄 방지)
+    const validationError = validateUtterances(utterances);
+    if (validationError) return validationError;
 
     const userMessage = utterances
       .map((u, i) => `[${i}] ${u.speaker} (${formatMs(u.startMs)}): ${u.text}`)
@@ -70,15 +74,13 @@ export async function POST(request: NextRequest) {
         ],
         temperature: 0.3,
         response_format: { type: "json_object" },
+        max_tokens: 8_000, // 응답 토큰 상한 명시
       }),
     });
 
     if (!oaiResponse.ok) {
-      const err = await oaiResponse.text();
-      return Response.json(
-        { error: `OpenAI API 오류: ${err}` },
-        { status: oaiResponse.status }
-      );
+      const detail = await oaiResponse.text();
+      return maskUpstreamError(oaiResponse.status, "OpenAI", detail);
     }
 
     const oaiData = await oaiResponse.json();
@@ -111,10 +113,12 @@ export async function POST(request: NextRequest) {
         intent: analysis.intent,
         keyPhrase: analysis.keyPhrase,
         importance: analysis.importance ?? 0.5,
-        relatedTo: (analysis.relatedTo || []).map((r: { targetIndex: number; type?: string }) => ({
-          targetIndex: r.targetIndex,
-          type: r.type || "extends",
-        })),
+        relatedTo: (analysis.relatedTo || []).map(
+          (r: { targetIndex: number; type?: string }) => ({
+            targetIndex: r.targetIndex,
+            type: r.type || "extends",
+          })
+        ),
       };
     });
 
@@ -136,9 +140,9 @@ export async function POST(request: NextRequest) {
     };
 
     return Response.json(result);
-  } catch (error) {
+  } catch {
     return Response.json(
-      { error: `분석 실패: ${(error as Error).message}` },
+      { error: "분석 처리 중 오류가 발생했습니다." },
       { status: 500 }
     );
   }
