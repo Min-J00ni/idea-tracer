@@ -1,44 +1,77 @@
 "use client";
 
+import { useState, useRef, useCallback } from "react";
 import { Handle, Position } from "reactflow";
-import type { AnalyzedUtterance, Emotion } from "@/lib/types";
-
-const emotionConfig: Record<Emotion, { icon: string; color: string; bg: string; label: string }> = {
-  positive: { icon: "😊", color: "#10B981", bg: "#ECFDF5", label: "긍정" },
-  negative: { icon: "😟", color: "#EF4444", bg: "#FEF2F2", label: "부정" },
-  neutral: { icon: "😐", color: "#9CA3AF", bg: "#F3F4F6", label: "중립" },
-  conflict: { icon: "⚡", color: "#F59E0B", bg: "#FFFBEB", label: "갈등" },
-};
-
-const intentBadge: Record<string, string> = {
-  proposal: "💡 제안",
-  objection: "🚫 반대",
-  agreement: "✅ 동의",
-  question: "❓ 질문",
-  info: "📋 정보",
-};
+import type { AnalyzedUtterance } from "@/lib/types";
+import { EMOTION_CONFIG, INTENT_CONFIG } from "@/lib/constants";
 
 interface Props {
   data: {
     utterance: AnalyzedUtterance;
     isHighlighted: boolean;
     onClick: (utterance: AnalyzedUtterance) => void;
+    onUpdateText?: (index: number, text: string) => void;
   };
 }
 
 export default function MindMapNode({ data }: Props) {
-  const { utterance, isHighlighted, onClick } = data;
-  const emotion = emotionConfig[utterance.emotion];
+  const { utterance, isHighlighted, onClick, onUpdateText } = data;
+  const emotion = EMOTION_CONFIG[utterance.emotion];
+  const intent = INTENT_CONFIG[utterance.intent];
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(utterance.text);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const borderWidth = utterance.importance >= 0.8 ? 3 : utterance.importance >= 0.5 ? 2 : 1;
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onUpdateText) return;
+      e.stopPropagation();
+      setIsEditing(true);
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    },
+    [onUpdateText]
+  );
+
+  const handleSave = useCallback(() => {
+    setIsEditing(false);
+    if (editText.trim() && editText !== utterance.text) {
+      onUpdateText?.(utterance.index, editText.trim());
+    } else {
+      setEditText(utterance.text);
+    }
+  }, [editText, utterance.text, utterance.index, onUpdateText]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSave();
+      }
+      if (e.key === "Escape") {
+        setEditText(utterance.text);
+        setIsEditing(false);
+      }
+    },
+    [handleSave, utterance.text]
+  );
 
   return (
     <div
-      onClick={() => onClick(utterance)}
+      onClick={() => !isEditing && onClick(utterance)}
+      onDoubleClick={handleDoubleClick}
       className={`
-        bg-white rounded-xl shadow-sm border-2 px-4 py-3 min-w-[240px] max-w-[280px]
+        bg-white rounded-xl shadow-sm px-4 py-3 min-w-[240px] max-w-[280px]
         cursor-pointer transition-all duration-200
         ${isHighlighted ? "ring-2 ring-blue-400 scale-105" : ""}
+        ${isEditing ? "cursor-text" : ""}
       `}
-      style={{ borderColor: isHighlighted ? "#60A5FA" : emotion.color + "40" }}
+      style={{
+        borderWidth: `${borderWidth}px`,
+        borderStyle: "solid",
+        borderColor: isEditing ? "#3B82F6" : isHighlighted ? "#60A5FA" : emotion.color + "40",
+      }}
     >
       <Handle type="target" position={Position.Left} className="!bg-gray-300 !w-2 !h-2" />
 
@@ -52,16 +85,28 @@ export default function MindMapNode({ data }: Props) {
         </span>
       </div>
 
-      <p className="text-sm text-gray-800 font-medium leading-snug mb-2 line-clamp-2">
-        {utterance.text}
-      </p>
+      {isEditing ? (
+        <textarea
+          ref={textareaRef}
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className="w-full text-sm text-gray-800 font-medium leading-snug resize-none border-none outline-none bg-transparent mb-2"
+          rows={3}
+        />
+      ) : (
+        <p className="text-sm text-gray-800 font-medium leading-snug mb-2 line-clamp-2">
+          {utterance.text}
+        </p>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-gray-400">
           {formatMs(utterance.startMs)}
         </span>
         <span className="text-[10px] px-1.5 py-0.5 bg-gray-50 rounded text-gray-500">
-          {intentBadge[utterance.intent] || utterance.intent}
+          {intent.icon} {intent.label}
         </span>
         <span
           className="text-[10px] font-bold"

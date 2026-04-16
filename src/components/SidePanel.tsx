@@ -1,13 +1,7 @@
 "use client";
 
 import type { AnalyzedUtterance } from "@/lib/types";
-
-const emotionColor: Record<string, string> = {
-  positive: "#10B981",
-  negative: "#EF4444",
-  neutral: "#9CA3AF",
-  conflict: "#F59E0B",
-};
+import { EMOTION_CONFIG, INTENT_CONFIG } from "@/lib/constants";
 
 interface Props {
   utterance: AnalyzedUtterance | null;
@@ -17,6 +11,9 @@ interface Props {
 
 export default function SidePanel({ utterance, onClose, onSeek }: Props) {
   if (!utterance) return null;
+
+  const emotion = EMOTION_CONFIG[utterance.emotion];
+  const intent = INTENT_CONFIG[utterance.intent];
 
   return (
     <div className="w-80 bg-white border-l border-gray-200 p-5 overflow-y-auto flex flex-col gap-4">
@@ -30,7 +27,7 @@ export default function SidePanel({ utterance, onClose, onSeek }: Props) {
       <div className="flex items-center gap-2">
         <div
           className="w-2 h-2 rounded-full"
-          style={{ backgroundColor: emotionColor[utterance.emotion] }}
+          style={{ backgroundColor: emotion.color }}
         />
         <span className="text-sm font-medium text-gray-700">{utterance.speaker}</span>
         <button
@@ -48,24 +45,46 @@ export default function SidePanel({ utterance, onClose, onSeek }: Props) {
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="bg-gray-50 rounded p-2">
           <span className="text-gray-500">감정</span>
-          <p className="font-medium mt-0.5" style={{ color: emotionColor[utterance.emotion] }}>
-            {utterance.emotion}
+          <p className="font-medium mt-0.5" style={{ color: emotion.color }}>
+            {emotion.icon} {emotion.label}
           </p>
         </div>
         <div className="bg-gray-50 rounded p-2">
           <span className="text-gray-500">의도</span>
-          <p className="font-medium mt-0.5 text-gray-800">{utterance.intent}</p>
+          <p className="font-medium mt-0.5 text-gray-800">
+            {intent.icon} {intent.label}
+          </p>
         </div>
       </div>
 
-      <div className="bg-gray-50 rounded p-2">
-        <span className="text-xs text-gray-500">핵심 키워드</span>
-        <p className="text-sm font-medium mt-0.5 text-gray-800">{utterance.keyPhrase}</p>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="bg-gray-50 rounded p-2">
+          <span className="text-gray-500">핵심 키워드</span>
+          <p className="text-sm font-medium mt-0.5 text-gray-800">{utterance.keyPhrase}</p>
+        </div>
+        <div className="bg-gray-50 rounded p-2">
+          <span className="text-gray-500">중요도</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            <div className="flex-1 h-1.5 bg-gray-200 rounded-full">
+              <div
+                className="h-1.5 rounded-full"
+                style={{
+                  width: `${utterance.importance * 100}%`,
+                  backgroundColor: emotion.color,
+                }}
+              />
+            </div>
+            <span className="text-gray-600 font-medium">
+              {Math.round(utterance.importance * 100)}%
+            </span>
+          </div>
+        </div>
       </div>
 
       {utterance.relatedTo.length > 0 && (
         <div className="text-xs text-gray-500">
-          연결된 발언: {utterance.relatedTo.map((i) => `#${i}`).join(", ")}
+          <span className="text-gray-400">연결:</span>{" "}
+          {utterance.relatedTo.map((r) => `#${r.targetIndex}(${r.type})`).join(", ")}
         </div>
       )}
     </div>
