@@ -8,6 +8,7 @@ import AudioPlayer from "@/components/AudioPlayer";
 import type { AnalyzedUtterance, AnalysisResult } from "@/lib/types";
 import { mockResult } from "@/lib/mock-data";
 import { toMarkdown, downloadText, encodeShareData, decodeShareData } from "@/lib/export";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 type AppState = "upload" | "processing" | "result";
 
@@ -179,13 +180,15 @@ export default function Home() {
 
       {/* 메인 영역 */}
       <div className="flex flex-1 overflow-hidden">
-        <MindMap
-          result={result}
-          selectedUtterance={selectedUtterance}
-          currentTimeMs={currentTimeMs}
-          onSelectUtterance={setSelectedUtterance}
-          onUpdateUtterance={handleUpdateUtterance}
-        />
+        <ErrorBoundary>
+          <MindMap
+            result={result}
+            selectedUtterance={selectedUtterance}
+            currentTimeMs={currentTimeMs}
+            onSelectUtterance={setSelectedUtterance}
+            onUpdateUtterance={handleUpdateUtterance}
+          />
+        </ErrorBoundary>
         <SidePanel
           utterance={selectedUtterance}
           onClose={() => setSelectedUtterance(null)}
