@@ -1,12 +1,10 @@
 import { NextRequest } from "next/server";
-import type { AnalysisResult, AnalyzedUtterance, ActionItem } from "@/lib/types";
-import { rateLimit, maskUpstreamError } from "@/lib/api-guard";
+import type { AnalysisResult, ActionItem, Topic } from "@/lib/types";
+import { rateLimit } from "@/lib/api-guard";
 
-// Notion API의 단일 children 배열 최대 블록 수
-const NOTION_BLOCK_LIMIT = 100;
+const MAX_EXPORT_ITEMS = 100;
 
 export async function POST(request: NextRequest) {
-  // Rate limit: 분당 5회
   const limited = rateLimit(request, "export-notion", 5, 60_000);
   if (limited) return limited;
 
@@ -33,7 +31,6 @@ export async function POST(request: NextRequest) {
       meetingTitle?: unknown;
     };
 
-    // 입력 검증
     if (
       !result ||
       typeof result !== "object" ||
@@ -44,8 +41,8 @@ export async function POST(request: NextRequest) {
 
     const analysisResult = result as AnalysisResult;
 
-    if (analysisResult.utterances.length === 0) {
-      return Response.json({ error: "내보낼 발언이 없습니다." }, { status: 400 });
+    if (analysisResult.actionItems.length === 0) {
+      return Response.json({ message: "내보낼 액션아이템이 없습니다.", count: 0 });
     }
 
     const title =
@@ -53,44 +50,24 @@ export async function POST(request: NextRequest) {
         ? meetingTitle.trim().slice(0, 200)
         : `회의 노트 ${new Date().toLocaleDateString("ko-KR")}`;
 
-    const blocks = buildNotionBlocks(analysisResult);
+    const items = analysisResult.actionItems.slice(0, MAX_EXPORT_ITEMS);
 
-    // Notion API 단일 요청 100블록 제한 — 초과분 truncate
-    const safeBlocks = blocks.slice(0, NOTION_BLOCK_LIMIT);
-    const truncated = blocks.length > NOTION_BLOCK_LIMIT;
+    // 액션아이템 1개 = Notion DB 1개 row 생성
+    const results = await Promise.allSettled(
+      items.map((action) =>
+        createNotionRow(apiKey, databaseId, action, analysisResult, title)
+      )
+    );
 
-    const notionResponse = await fetch("https://api.notion.com/v1/pages", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28",
-      },
-      body: JSON.stringify({
-        parent: { database_id: databaseId },
-        properties: {
-          title: {
-            title: [{ text: { content: title } }],
-          },
-        },
-        children: safeBlocks,
-      }),
-    });
-
-    if (!notionResponse.ok) {
-      const detail = await notionResponse.text();
-      return maskUpstreamError(notionResponse.status, "Notion", detail);
-    }
-
-    const page = await notionResponse.json();
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.filter((r) => r.status === "rejected").length;
 
     return Response.json({
-      message: truncated
-        ? `Notion 내보내기 완료 (${NOTION_BLOCK_LIMIT}블록 제한으로 일부 생략됨)`
-        : "Notion 내보내기 완료",
-      pageUrl: page.url,
-      totalBlocks: blocks.length,
-      exportedBlocks: safeBlocks.length,
+      message: failed > 0
+        ? `${succeeded}개 완료, ${failed}개 실패`
+        : `Notion에 ${succeeded}개 항목이 추가됐습니다.`,
+      count: succeeded,
+      failed,
     });
   } catch {
     return Response.json(
@@ -100,127 +77,137 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── Notion 블록 빌더 ──────────────────────────────────────────
+async function createNotionRow(
+  apiKey: string,
+  databaseId: string,
+  action: ActionItem,
+  result: AnalysisResult,
+  meetingTitle: string
+): Promise<void> {
+  // 액션아이템이 속한 주제 찾기
+  const sourceUtterance = result.utterances.find((u) => u.index === action.sourceIndex);
+  const topic: Topic | undefined = sourceUtterance
+    ? result.topics.find((t) => t.id === sourceUtterance.topicId)
+    : undefined;
 
-type NotionBlock = Record<string, unknown>;
+  // 주제에 속한 쟁점 찾기
+  const issues = topic?.points
+    ?.filter((p) => p.type === "쟁점" || p.type === "미해결")
+    .map((p) => p.summary)
+    ?? [];
 
-function buildNotionBlocks(result: AnalysisResult): NotionBlock[] {
-  const blocks: NotionBlock[] = [];
+  // 미결 쟁점 (result.unresolved) 추가
+  const unresolvedText = result.unresolved?.join(", ") ?? "";
+  const issueText = [...issues, ...(unresolvedText ? [unresolvedText] : [])]
+    .join(" / ")
+    .slice(0, 2000);
 
-  // 1. 회의 요약 (callout)
+  const properties: Record<string, unknown> = {
+    // 제목 — 액션아이템 내용
+    이름: {
+      title: [{ text: { content: action.text.slice(0, 2000) } }],
+    },
+    // 담당자
+    담당자: {
+      rich_text: [{ text: { content: action.assignee ?? "" } }],
+    },
+    // 주제 노드
+    주제: {
+      rich_text: [{ text: { content: topic?.title ?? "" } }],
+    },
+    // 쟁점
+    쟁점: {
+      rich_text: [{ text: { content: issueText } }],
+    },
+  };
+
+  // 마감일 (날짜 형식일 때만)
+  if (action.deadline) {
+    const parsed = parseDeadline(action.deadline);
+    if (parsed) {
+      properties["마감일"] = { date: { start: parsed } };
+    } else {
+      // 날짜 형식이 아니면 쟁점 앞에 텍스트로 추가
+      properties["담당자"] = {
+        rich_text: [
+          { text: { content: `${action.assignee ?? ""} (기한: ${action.deadline})` } },
+        ],
+      };
+    }
+  }
+
+  // 페이지 본문 — 원문 발언 quote 블록
+  const children: unknown[] = [];
   if (result.summary) {
-    blocks.push({
+    children.push({
       object: "block",
       type: "callout",
       callout: {
-        icon: { emoji: "💡" },
-        rich_text: [{ text: { content: result.summary.slice(0, 2000) } }],
+        icon: { emoji: "📋" },
+        rich_text: [{ text: { content: `회의: ${meetingTitle}` } }],
         color: "gray_background",
       },
     });
-    blocks.push({ object: "block", type: "divider", divider: {} });
   }
-
-  // 2. 주제별 발언 + 관련 액션아이템
-  for (const topic of result.topics) {
-    blocks.push({
+  if (sourceUtterance) {
+    children.push({
       object: "block",
-      type: "heading_2",
-      heading_2: {
-        rich_text: [{ text: { content: topic.title } }],
+      type: "quote",
+      quote: {
+        rich_text: [
+          {
+            text: {
+              content: `${sourceUtterance.speaker} ${formatMs(sourceUtterance.startMs)}  `,
+            },
+            annotations: { bold: true },
+          },
+          { text: { content: sourceUtterance.text.slice(0, 1900) } },
+        ],
       },
     });
-
-    const topicUtterances = result.utterances
-      .filter((u) => u.topicId === topic.id)
-      .sort((a, b) => a.startMs - b.startMs);
-
-    for (const u of topicUtterances) {
-      blocks.push(buildQuoteBlock(u));
-    }
-
-    // 주제에 속한 액션아이템
-    const topicActions = result.actionItems.filter((a) =>
-      topicUtterances.some((u) => u.index === a.sourceIndex)
-    );
-
-    for (const action of topicActions) {
-      blocks.push(buildTodoBlock(action));
-    }
   }
 
-  // 3. 핵심 결정
-  if (result.decisions.length > 0) {
-    blocks.push({ object: "block", type: "divider", divider: {} });
-    blocks.push({
-      object: "block",
-      type: "heading_2",
-      heading_2: {
-        rich_text: [{ text: { content: "✅ 핵심 결정" } }],
-      },
-    });
-    for (const d of result.decisions) {
-      blocks.push({
-        object: "block",
-        type: "bulleted_list_item",
-        bulleted_list_item: {
-          rich_text: [{ text: { content: d.slice(0, 2000) } }],
-        },
-      });
-    }
-  }
+  const res = await fetch("https://api.notion.com/v1/pages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Notion-Version": "2022-06-28",
+    },
+    body: JSON.stringify({
+      parent: { database_id: databaseId },
+      properties,
+      ...(children.length > 0 ? { children } : {}),
+    }),
+  });
 
-  // 4. 전체 액션아이템 (주제 미귀속 포함)
-  if (result.actionItems.length > 0) {
-    blocks.push({ object: "block", type: "divider", divider: {} });
-    blocks.push({
-      object: "block",
-      type: "heading_2",
-      heading_2: {
-        rich_text: [{ text: { content: "📋 전체 액션아이템" } }],
-      },
-    });
-    for (const action of result.actionItems) {
-      blocks.push(buildTodoBlock(action));
-    }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Notion API 오류 (${res.status}): ${detail}`);
   }
-
-  return blocks;
 }
 
-function buildQuoteBlock(u: AnalyzedUtterance): NotionBlock {
-  const timeLabel = formatMs(u.startMs);
-  return {
-    object: "block",
-    type: "quote",
-    quote: {
-      rich_text: [
-        {
-          text: { content: `${u.speaker} ${timeLabel}  ` },
-          annotations: { bold: true },
-        },
-        { text: { content: u.text.slice(0, 1900) } },
-      ],
-      color: "default",
-    },
-  };
-}
+/** "2026-05-01", "5월 1일", "내일" 등을 ISO 날짜로 변환 */
+function parseDeadline(deadline: string): string | null {
+  // ISO 형식 (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return deadline;
 
-function buildTodoBlock(action: ActionItem): NotionBlock {
-  const meta: string[] = [];
-  if (action.assignee) meta.push(`담당: ${action.assignee}`);
-  if (action.deadline) meta.push(`기한: ${action.deadline}`);
-  const suffix = meta.length > 0 ? `  (${meta.join(", ")})` : "";
-  return {
-    object: "block",
-    type: "to_do",
-    to_do: {
-      rich_text: [
-        { text: { content: (action.text + suffix).slice(0, 2000) } },
-      ],
-      checked: action.done ?? false,
-    },
-  };
+  // "YYYY년 MM월 DD일" 형식
+  const korean = deadline.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+  if (korean) {
+    const [, y, m, d] = korean;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  // "MM월 DD일" 형식 (현재 연도 사용)
+  const monthDay = deadline.match(/(\d{1,2})월\s*(\d{1,2})일/);
+  if (monthDay) {
+    const year = new Date().getFullYear();
+    const [, m, d] = monthDay;
+    return `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+
+  return null;
 }
 
 function formatMs(ms: number): string {
