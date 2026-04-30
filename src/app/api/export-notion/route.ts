@@ -52,10 +52,13 @@ export async function POST(request: NextRequest) {
 
     const items = analysisResult.actionItems.slice(0, MAX_EXPORT_ITEMS);
 
+    // 워크스페이스 사용자 목록 조회 (담당자 이름 → user ID 매핑용)
+    const userMap = await fetchWorkspaceUsers(apiKey);
+
     // 액션아이템 1개 = Notion DB 1개 row 생성
     const results = await Promise.allSettled(
       items.map((action) =>
-        createNotionRow(apiKey, databaseId, action, analysisResult, title)
+        createNotionRow(apiKey, databaseId, action, analysisResult, title, userMap)
       )
     );
 
@@ -77,12 +80,43 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** 워크스페이스 사용자 목록을 조회해 이름 → user ID 맵 반환 */
+async function fetchWorkspaceUsers(apiKey: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    const res = await fetch("https://api.notion.com/v1/users", {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Notion-Version": "2022-06-28",
+      },
+    });
+    if (!res.ok) return map;
+    const data = await res.json() as { results: Array<{ id: string; name: string; type: string }> };
+    for (const user of data.results) {
+      if (user.type === "person" && user.name) {
+        // 이름 전체, 이름 앞부분, 성 등 여러 형태로 등록
+        map.set(user.name.toLowerCase(), user.id);
+        const parts = user.name.split(/\s+/);
+        for (const part of parts) {
+          if (!map.has(part.toLowerCase())) {
+            map.set(part.toLowerCase(), user.id);
+          }
+        }
+      }
+    }
+  } catch {
+    // 사용자 조회 실패 시 빈 맵 반환 (내보내기는 계속 진행)
+  }
+  return map;
+}
+
 async function createNotionRow(
   apiKey: string,
   databaseId: string,
   action: ActionItem,
   result: AnalysisResult,
-  meetingTitle: string
+  meetingTitle: string,
+  userMap: Map<string, string>
 ): Promise<void> {
   // 액션아이템이 속한 주제 찾기
   const sourceUtterance = result.utterances.find((u) => u.index === action.sourceIndex);
@@ -102,14 +136,18 @@ async function createNotionRow(
     .join(" / ")
     .slice(0, 2000);
 
+  // 담당자 이름 → Notion user ID 매핑
+  const assigneeName = action.assignee?.toLowerCase() ?? "";
+  const userId = assigneeName ? userMap.get(assigneeName) : undefined;
+
   const properties: Record<string, unknown> = {
     // 제목 — 액션아이템 내용
     이름: {
       title: [{ text: { content: action.text.slice(0, 2000) } }],
     },
-    // 담당자
+    // 담당자 (people 타입)
     담당자: {
-      rich_text: [{ text: { content: action.assignee ?? "" } }],
+      people: userId ? [{ object: "user", id: userId }] : [],
     },
     // 주제 노드
     주제: {
@@ -126,12 +164,15 @@ async function createNotionRow(
     const parsed = parseDeadline(action.deadline);
     if (parsed) {
       properties["마감일"] = { date: { start: parsed } };
-    } else {
-      // 날짜 형식이 아니면 쟁점 앞에 텍스트로 추가
-      properties["담당자"] = {
-        rich_text: [
-          { text: { content: `${action.assignee ?? ""} (기한: ${action.deadline})` } },
-        ],
+    }
+    // 날짜 파싱 실패 시 쟁점 필드에 원문 텍스트 추가
+    if (!parsed && issueText) {
+      properties["쟁점"] = {
+        rich_text: [{ text: { content: `기한: ${action.deadline} / ${issueText}`.slice(0, 2000) } }],
+      };
+    } else if (!parsed) {
+      properties["쟁점"] = {
+        rich_text: [{ text: { content: `기한: ${action.deadline}` } }],
       };
     }
   }

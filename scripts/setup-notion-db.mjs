@@ -47,11 +47,12 @@ const db = await getRes.json();
 const existing = Object.keys(db.properties);
 console.log("현재 컬럼:", existing.join(", "));
 
-// 2. 추가할 속성 정의
+// 2. 추가/변경할 속성 정의
 const toAdd = {};
 
-if (!existing.includes("담당자")) {
-  toAdd["담당자"] = { rich_text: {} };
+// 담당자: people 타입 (기존 rich_text면 변환)
+if (!existing.includes("담당자") || db.properties["담당자"]?.type !== "people") {
+  toAdd["담당자"] = { people: {} };
 }
 if (!existing.includes("마감일")) {
   toAdd["마감일"] = { date: {} };
